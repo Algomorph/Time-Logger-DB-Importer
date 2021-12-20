@@ -1,51 +1,80 @@
 #!/usr/bin/python3
-from typing import Type
+from typing import Type, List
 import sys
-import mariadb
 from pathlib import Path
+import requests
 from ext_argparse import Parameter, ParameterEnum, process_arguments
+import csv
+import re
 
 PROGRAM_EXIT_SUCCESS = 0
-
-
-class DatabaseParameters(ParameterEnum):
-    host = Parameter(default="localhost", arg_type=str, arg_help="Hostname or address of the database server.")
-    port = Parameter(default=3306, arg_type=int, arg_help="Port from which the database is served at the host.")
-    name = Parameter(default="awesome_database", arg_type=str, arg_help="Name of the database on the server.")
-    username = Parameter(default="john_doe", arg_type=str, arg_help="Database username.")
-    password = Parameter(default="totally_impenetrable_password", arg_type=str, arg_help="Password for the database.",
-                         shorthand="pwd")
 
 
 class Parameters(ParameterEnum):
     input = Parameter(default="aTimeLogger_report.csv", arg_type=str, arg_help="Path to the input CSV file.",
                       positional=True)
-
-    database = DatabaseParameters
+    start_from_row = Parameter(default=1, arg_type=int, arg_help="Start processing from this row index "
+                                                                 "(NB: row at index 0 is usually the header row)")
 
 
 def main() -> int:
-    process_arguments(Parameters, "A script to import aTimeLogger data into a database.", "import_csv_settings.yaml", True)
+    process_arguments(Parameters, "A script to import aTimeLogger data into a database.", "import_csv_settings.yaml",
+                      True)
     input_path = Path(Parameters.input.value)
-    db: Type[DatabaseParameters] = DatabaseParameters
+    print(f"Processing file: {input_path}")
+    start_from_row = Parameters.start_from_row.value
+    insert_script_url = "http://kramida.com/data/insertdb.php"
+    request = requests.get(insert_script_url + "?retrieve_activity_types")
+    activity_types = request.json()
+    activity_map = {}
+    for activity_type in activity_types:
+        activity_map[activity_type["short_description"]] = activity_type["activity_type_id"]
 
-    try:
-        print(db.username.value)
-        print(db.password.value)
-        print(db.port.value)
-        print(db.username.value)
-        print(db.name.value)
+    screen_keyword_pattern = re.compile(r'\s*\([Ss]creen\)\s*$')
+    no_screens_keyword_pattern = re.compile(r'\s*\([Nn]o\s*[Ss]creens?\)\s*$')
 
-        connection = mariadb.connect(
-            user=db.username.value,
-            password=db.password.value,
-            host=db.host.value,
-            port=db.port.value,
-            database=db.name.value
-        )
-    except mariadb.Error as ex:
-        print(f"An error occurred while connecting to MariaDB: {ex}")
-        sys.exit(1)
+    with open(input_path, newline='') as csvfile:
+        log_reader = csv.reader(csvfile, delimiter=",", )
+        i_row = 0
+        for row in log_reader:
+            if len(row) == 0 or row[0] == '':
+                # must have reached the end of the data, before summary
+                break
+            if i_row < start_from_row:
+                i_row += 1
+                continue
+            short_description = no_screens_keyword_pattern.sub("", row[0])
+            screen_used = False
+            if len(screen_keyword_pattern.findall(short_description)) > 0:
+                short_description = screen_keyword_pattern.sub("", short_description)
+                screen_used = True
+            activity_type_id = 0
+            if short_description not in activity_map:
+                data = {
+                    "short_description": short_description,
+                    "long_description": "",
+                    "screen_used": 1 if screen_used else 0
+                }
+                response = requests.post(insert_script_url, data)
+                data = {
+                    "retrieve_activity_types": 1,
+                    "short_description": short_description,
+                }
+                request = requests.get(insert_script_url, data)
+                activity_type = request.json()[0]
+                activity_type_id = activity_type["activity_type_id"]
+            else:
+                activity_type_id = activity_map[short_description]
+
+            data = {
+                "activity_type": activity_type_id,
+                "start": row[2],  # NB: duration is in row 1, we drop it since it's derived data
+                "end": row[3],
+                "comment": row[4]
+            }
+            requests.post(insert_script_url, data)
+            print(f"processed: {row}")
+            i_row += 1
 
     return PROGRAM_EXIT_SUCCESS
 
