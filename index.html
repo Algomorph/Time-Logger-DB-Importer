@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <meta charset="UTF-8">
+    <title>Data</title>
+
+</head>
+<body>
+<!-- Create a div where the graph will take place -->
+<div id="chart"></div>
+<!--<script src="https://d3js.org/d3.v7.js"></script>-->
+<!--<script src="https://d3js.org/d3-collection.v1.min.js"></script>-->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+
+    function generateDayWiseTimeSeries(start_point, point_count, range) {
+        const series = [];
+        let current_date = start_point;
+        for (let r = 0; r < point_count; r++) {
+            const value = Math.floor(Math.random() * (range.max - range.min + 1)) + range.min;
+            series.push([current_date, value]);
+            current_date += 864e5;
+        }
+        return series;
+    }
+
+
+    const dataUrl = "http://kramida.com/data/insertdb.php";
+
+
+    const colorMap = new Map([
+        ["Sleep", '#88697b'],
+        ["Chores", '#83A8AA'],
+        ["Cinema", '#707175'],
+        ["Research Discussion", '#D68e39'],
+        ["Verbal Communication", '#8087bd'],
+        ["Research - Reading", '#FFAF18'],
+        ["Meal or Tea", '#999647'],
+        ["Walk", '#62c0dc'],
+        ["Personal Hygiene", '#61ABD5'],
+        ["Research", '#d6a20d'],
+        ["Sex", '#b25f69'],
+        ["Rest & Meditation", '#0f9359'],
+        ["Cooking", '#639f25'],
+        ["Driving", '#c74a6c'],
+        ["Shop Out", '#32514b'],
+        ["GAAC / FSE Business", '#83a8aa'],
+        ["Internet", '#adb9c7'],
+        ["Calesthenics", '#c79c60'],
+        ["Code Grader", '#634D31'],
+        ["Audiobook", '#4392d1'],
+        ["Reading", '#8a704d'],
+        ["TA Duties", '#f38725'],
+        ["Weightlifting", '#d7623a'],
+        ["Weightlifting (Spine Stress) ", '#ff0000'],
+        ["Pump", '#d7623A'],
+        ["Computer Help", '#8087BD'],
+        ["Chess", '#d7623A'],
+        ["Housework", '#be7eb7'],
+        ["Running", '#ffc439'],
+        ["Biking", '#749b4e'],
+        ["Organization", '#61abd5'],
+        ["Diary", '#399fc3'],
+        ["Yoga \/ Stretch", '#c74a6c'],
+        ["Publication Review", '#B69230'],
+        ["Email \/ Messages", '#83A8AA'],
+        ["Transit", '#701272'],
+        ["Beach", '#ffee0a'],
+        ["Billiards", '#83A8AA'],
+        ["Number 2", '#F5edf0'],
+        ["Paperwork", '#83A8AA'],
+        ["Masturbation", '#86759b'],
+        ["Computer \/ Video Games", '#83A8AA'],
+        ["Bike Repair", '#726d6f'],
+        ["Singing \/ Recording", '#d6a9c3'],
+        ["Diary \/ Poetry", '#399fc3'],
+        ["Computer Repair\/Maintenance", '#454c3c'],
+        ["Car Repair \/ Maintenance", '#475630'],
+        ["Video \/ Audio Editing", '#9ed5f4'],
+        ["Swimming", '#83A8AA'],
+        ["Music Appreciation", '#2e70aa'],
+        ["Massage", '#83A8AA'],
+        ["Guitar", '#a87d2c'],
+        ["Sculpture", '#847667'],
+        ["Playing with cat", '#000400'],
+        ["Stand up \/ Comedy", "#FF9D00"],
+        ["Petting Cat", '#6F6f6f'],
+        ["Cat Care", '#181720'],
+        ["Concert or Musical", '#279a8e'],
+        ["Theatre", '#ae1248'],
+        ["Digital Shopping", '#39484D'],
+        ["Yard Work", '#b0b152'],
+        ["Other Board Games", '#ffffff'],
+        ["Paco Sako", '#ffffff'],
+        ["Computer \/ Video Games", '#ffff6f'],
+        ["Puzzles", '#b0b152'],
+        ["Miscellaneous", '#080f1c'],
+    ]);
+
+    const colorCollection = [];
+
+    const seriesCollection = [];
+    const seriesMap = new Map();
+    // prefetch the data types
+    fetch(dataUrl,{
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({'retrieve_activity_types': 1})
+        }
+    ).then(response => response.json()).then(
+        activityTypes => {
+            for (const type of activityTypes) {
+                let activityName = type.short_description;
+                if (type.screen_used === "1") {
+                    activityName += " (Screen)";
+                }
+                const activitySeries = {
+                    name: activityName,
+                    data: []
+                }
+                seriesCollection.push(activitySeries)
+                colorCollection.push(colorMap.get(type.short_description))
+                seriesMap.set(activityName, activitySeries)
+            }
+            fetch(dataUrl).then(response => response.json()).then(
+                data => {
+                    let minDate = Date.now()
+                    let maxDate = Date.parse('01 Jan 1970 00:00:00 GMT')
+                    for (const weeklyActionRecord of data) {
+                        const date = Date.parse(weeklyActionRecord.week + " GMT-0500");
+                        weeklyActionRecord.date = date;
+
+                        if (date > maxDate) {
+                            maxDate = date;
+                        } else if (date < minDate) {
+                            minDate = date;
+                        }
+                    }
+                    const secondsPerWeek = 604800
+                    const msPerWeek = secondsPerWeek * 1e3
+                    const weekCount = (maxDate - minDate) / msPerWeek + 1
+                    // initialize series to zeros
+                    for (const activitySeries of seriesCollection) {
+                        let currentDate = minDate;
+                        for (let iWeek = 0; iWeek < weekCount; iWeek++) {
+                            activitySeries.data.push([currentDate, 0]);
+                            currentDate += msPerWeek;
+                        }
+                    }
+                    // fill series entries
+                    for (const weeklyActionRecord of data) {
+                        let activityKey = weeklyActionRecord.activity;
+                        if (weeklyActionRecord.screen === "1") {
+                            activityKey += " (Screen)"
+                        }
+                        const series = seriesMap.get(activityKey);
+
+                        const iWeek = Math.round((weeklyActionRecord.date - minDate) / msPerWeek);
+                        series.data[iWeek][1] = weeklyActionRecord.duration;
+                    }
+
+                    // set up chart options
+                    const options = {
+                        series: seriesCollection,
+                        chart: {
+                            type: 'area',
+                            height: 920,
+                            stacked: true,
+                            events: {
+                                selection: function (chart, e) {
+                                    console.log(new Date(e.xaxis.min))
+                                }
+                            },
+                        },
+                        colors: colorCollection,
+                        dataLabels: {
+                            enabled: false
+                        },
+                        stroke: {
+                            curve: 'smooth',
+                            width: 1
+                        },
+                        fill: {
+                            type: 'gradient',
+                            gradient: {
+                                opacityFrom: 0.6,
+                                opacityTo: 0.8,
+                            }
+                        },
+                        legend: {
+                            position: 'top',
+                            horizontalAlign: 'left'
+                        },
+                        xaxis: {
+                            type: 'datetime'
+                        },
+                        tooltip: {
+                            y: {
+                                formatter: function (value, {series, seriesIndex, dataPointIndex, w}) {
+                                    return Math.round(value / 60) + ":" + (value % 60).toString().padStart(2,"0")
+                                }
+                            }
+                        }
+                    };
+
+                    const chart = new ApexCharts(document.querySelector("#chart"), options);
+                    chart.render();
+                }
+            );
+        }
+    );
+
+
+</script>
+</body>
+
+</html>

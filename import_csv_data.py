@@ -15,6 +15,7 @@ class Parameters(ParameterEnum):
                       positional=True)
     start_from_row = Parameter(default=1, arg_type=int, arg_help="Start processing from this row index "
                                                                  "(NB: row at index 0 is usually the header row)")
+    private_password = Parameter(default="password", arg_type=str, arg_help="Password to store private data.")
 
 
 def main() -> int:
@@ -24,7 +25,13 @@ def main() -> int:
     print(f"Processing file: {input_path}")
     start_from_row = Parameters.start_from_row.value
     insert_script_url = "http://kramida.com/data/insertdb.php"
-    request = requests.get(insert_script_url + "?retrieve_activity_types")
+    request = requests.post(
+        insert_script_url,
+        {
+            "retrieve_activity_types": 1,
+            "private_password": Parameters.private_password.value
+        }
+    )
     activity_types = request.json()
     activity_map = {}
     for activity_type in activity_types:
@@ -59,8 +66,9 @@ def main() -> int:
                 data = {
                     "retrieve_activity_types": 1,
                     "short_description": short_description,
+                    "private_password": Parameters.private_password.value
                 }
-                request = requests.get(insert_script_url, data)
+                request = requests.post(insert_script_url, data)
                 activity_type = request.json()[0]
                 activity_type_id = activity_type["activity_type_id"]
             else:

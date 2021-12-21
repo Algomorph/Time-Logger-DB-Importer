@@ -1,8 +1,6 @@
 <?php
-$db_host = 'FIXME';
-$db_user = 'FIXME';
-$db_password = 'FIXME';
-$db_database = 'FIXME';
+
+$private_password_hash = '$2y$10$2srKmlUH9jvugCRcRXSFWeAne9XZBDhSzRGp0vLPcceG834IrtaYG';
 
 function getClientIP()
 {
@@ -68,28 +66,88 @@ if (isset($_POST['activity_type']) and
         printf("Statement prepare failed: %s\n", $mysqli->error);
     }
     $mysqli->close();
-} elseif (isset($_GET['retrieve_activity_types'])) {
+} elseif (isset($_POST['retrieve_activity_types'])) {
+    $get_private = false;
+    if (isset($_POST['private_password']) && password_hash($_POST['private_password'], PASSWORD_DEFAULT) == $private_password_hash) {
+        $get_private = true;
+    }
     $mysqli = new mysqli($db_host, $db_user, $db_password, $db_database);
     /* check connection */
     if (mysqli_connect_errno()) {
         printf("Connect failed: %s\n", mysqli_connect_error());
         exit();
     }
-    $sql = "SELECT * FROM activity_type";
-    if(isset($_GET["short_description"])){
-        $short_description = $mysqli->real_escape_string($_GET['short_description']);
-        $sql = "SELECT * FROM activity_type WHERE short_description='" . $short_description . "'";
+    if ($get_private) {
+        $sql = "SELECT * FROM activity_type WHERE short_description != Miscellaneous";
+    } else {
+        $sql = "SELECT * FROM activity_type WHERE private != 1";
+    }
+
+    if (isset($_POST["short_description"])) {
+        $short_description = $mysqli->real_escape_string($_POST['short_description']);
+        if ($get_private) {
+            $sql = "SELECT * FROM activity_type WHERE short_description='" . $short_description . "'";
+        } else {
+            $sql = "SELECT * FROM activity_type WHERE short_description='" . $short_description . "' AND private != 1";
+        }
     }
     $result = $mysqli->query($sql);
 
     $result_array = array();
-    while($row =mysqli_fetch_assoc($result))
-    {
+    while ($row = mysqli_fetch_assoc($result)) {
         $result_array[] = $row;
     }
 
     echo json_encode($result_array);
 
+    $mysqli->close();
+} else {
+    $get_private = false;
+    if (isset($_POST['private_password']) && password_hash($_POST['private_password'], PASSWORD_DEFAULT) == $private_password_hash) {
+        $get_private = true;
+    }
+    $mysqli = new mysqli($db_host, $db_user, $db_password, $db_database);
+    /* check connection */
+    if (mysqli_connect_errno()) {
+        printf("Connect failed: %s\n", mysqli_connect_error());
+        exit();
+    }
+    if ($get_private) {
+        $sql = <<<EOD
+SELECT activity_type.short_description AS activity, activity_type.screen_used AS screen, SUM(TIMESTAMPDIFF(minute, start, end)) AS duration,
+STR_TO_DATE(CONCAT(YEARWEEK(start,3),'1'),'%x%v%w') AS week
+FROM activity 
+LEFT JOIN activity_type
+ON activity.activity_type = activity_type.activity_type_id
+GROUP BY week, activity, screen
+EOD;
+    } else {
+        $sql = <<<EOD
+SELECT 
+CASE 
+	WHEN activity_type.private != 1 THEN activity_type.short_description 
+    ELSE "Miscellaneous"
+END
+AS activity, 
+activity_type.screen_used 
+AS screen, 
+SUM(TIMESTAMPDIFF(minute, start, end)) AS duration,
+STR_TO_DATE(CONCAT(YEARWEEK(start,3),'1'),'%x%v%w') AS week
+FROM activity 
+LEFT JOIN activity_type
+ON activity.activity_type = activity_type.activity_type_id
+GROUP BY week, activity, screen
+EOD;
+    }
+
+    $result = $mysqli->query($sql);
+
+    $result_array = array();
+    while ($row = mysqli_fetch_assoc($result)) {
+        $result_array[] = $row;
+    }
+
+    echo json_encode($result_array);
     $mysqli->close();
 }
 ?>
