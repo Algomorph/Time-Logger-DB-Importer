@@ -1,6 +1,17 @@
 <?php
 
-$private_password_hash = '$2y$10$2srKmlUH9jvugCRcRXSFWeAne9XZBDhSzRGp0vLPcceG834IrtaYG';
+
+//Note: fill this info for your own MySql/MariaDB database server.
+//$db_host = "XXXXXXXX.XX";
+//$db_user = "XXXXX";
+//$db_password = "XXXXXX";
+//$db_database = "XXXXX";
+
+//Set our own private hash here:
+//$private_password_hash = '$2y$10$2srKmlUH9jvugCRcRXSFWeAne9XZBDhSzRGp0vLPcceG834IrtaYG';
+
+// You can also inclide all of this info from a separate PHP file:
+include "protected_info.php";
 
 function getClientIP()
 {

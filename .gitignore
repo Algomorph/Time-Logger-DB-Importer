@@ -130,3 +130,4 @@ dmypy.json
 
 # Settings files
 /import_csv_settings.yaml
+/protected_info.php
