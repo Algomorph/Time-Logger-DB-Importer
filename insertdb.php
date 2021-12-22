@@ -2,15 +2,15 @@
 
 
 //Note: fill this info for your own MySql/MariaDB database server.
-//$db_host = "XXXXXXXX.XX";
-//$db_user = "XXXXX";
-//$db_password = "XXXXXX";
-//$db_database = "XXXXX";
+$db_host = "XXXXXXXX.XX";
+$db_user = "XXXXX";
+$db_password = "XXXXXX";
+$db_database = "XXXXX";
 
-//Set our own private hash here:
-//$private_password_hash = '$2y$10$2srKmlUH9jvugCRcRXSFWeAne9XZBDhSzRGp0vLPcceG834IrtaYG';
+//Set our own private data password hash here:
+$private_password_hash = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 
-// You can also inclide all of this info from a separate PHP file:
+// You can also include all of this info from a separate PHP file:
 include "protected_info.php";
 
 function getClientIP()
@@ -64,12 +64,14 @@ if (isset($_POST['activity_type']) and
     }
 
 
-    if ($stmt = $mysqli->prepare("INSERT INTO activity_type (short_description, long_description, screen_used) " .
-        "VALUES (?, ?, ?)")) {
-        $stmt->bind_param('ssi',
+    if ($stmt = $mysqli->prepare("INSERT INTO activity_type (short_description, long_description, screen_used, color) " .
+        "VALUES (?, ?, ?, ?)")) {
+        $color = substr(str_shuffle('ABCDEF0123456789'), 0, 6);
+        $stmt->bind_param('ssis',
             $_POST['short_description'],
             $_POST['long_description'],
-            $_POST['screen_used']
+            $_POST['screen_used'],
+            $color
         );
         $stmt->execute();
         $stmt->close();
