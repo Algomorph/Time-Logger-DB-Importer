@@ -18,6 +18,36 @@ class Parameters(ParameterEnum):
     private_password = Parameter(default="password", arg_type=str, arg_help="Password to store private data.")
 
 
+def query_yes_no(question, default="yes"):
+    """Ask a yes/no question via raw_input() and return their answer.
+
+    "question" is a string that is presented to the user.
+    "default" is the presumed answer if the user just hits <Enter>.
+            It must be "yes" (the default), "no" or None (meaning
+            an answer is required of the user).
+
+    The "answer" return value is True for "yes" or False for "no".
+    """
+    valid = {"yes": True, "y": True, "ye": True, "no": False, "n": False}
+    if default is None:
+        prompt = " [y/n] "
+    elif default == "yes":
+        prompt = " [Y/n] "
+    elif default == "no":
+        prompt = " [y/N] "
+    else:
+        raise ValueError("invalid default answer: '%s'" % default)
+
+    while True:
+        sys.stdout.write(question + prompt)
+        choice = input().lower()
+        if default is not None and choice == "":
+            return valid[default]
+        elif choice in valid:
+            return valid[choice]
+        else:
+            sys.stdout.write("Please respond with 'yes' or 'no' " "(or 'y' or 'n').\n")
+
 def main() -> int:
     process_arguments(Parameters, "A script to import aTimeLogger data into a database.", "import_csv_settings.yaml",
                       True)
@@ -56,31 +86,35 @@ def main() -> int:
                 short_description = screen_keyword_pattern.sub("", short_description)
                 screen_used = True
             activity_type_id = 0
+            skip = False
             if short_description not in activity_map:
-                data = {
-                    "short_description": short_description,
-                    "long_description": "",
-                    "screen_used": 1 if screen_used else 0
-                }
-                response = requests.post(insert_script_url, data)
-                data = {
-                    "retrieve_activity_types": 1,
-                    "short_description": short_description,
-                    "private_password": Parameters.private_password.value
-                }
-                request = requests.post(insert_script_url, data)
-                activity_type = request.json()[0]
-                activity_type_id = activity_type["activity_type_id"]
+                skip = not query_yes_no(f"Activity type with short description \"{short_description}\" is not in the database. Add? (Will skip otherwise) ")
+                if not skip:
+                    data = {
+                        "short_description": short_description,
+                        "long_description": "",
+                        "screen_used": 1 if screen_used else 0
+                    }
+                    response = requests.post(insert_script_url, data)
+                    data = {
+                        "retrieve_activity_types": 1,
+                        "short_description": short_description,
+                        "private_password": Parameters.private_password.value
+                    }
+                    request = requests.post(insert_script_url, data)
+                    activity_type = request.json()[0]
+                    activity_type_id = activity_type["activity_type_id"]
             else:
                 activity_type_id = activity_map[short_description]
 
-            data = {
-                "activity_type": activity_type_id,
-                "start": row[2],  # NB: duration is in row 1, we drop it since it's derived data
-                "end": row[3],
-                "comment": row[4]
-            }
-            requests.post(insert_script_url, data)
+            if (not skip):
+                data = {
+                    "activity_type": activity_type_id,
+                    "start": row[2],  # NB: duration is in row 1, we drop it since it's derived data
+                    "end": row[3],
+                    "comment": row[4]
+                }
+                requests.post(insert_script_url, data)
             print(f"processed: {row}")
             i_row += 1
 
