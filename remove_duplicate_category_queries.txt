@@ -1,0 +1,19 @@
+UPDATE activity
+INNER JOIN activity_type ON `activity`.`activity_type`= activity_type.activity_type_id
+SET activity.activity_type = (
+	WITH unique_activities AS (
+  		SELECT MIN(`activity_type_id`) as uid, `short_description`
+  		FROM `activity_type` GROUP BY(`short_description`)
+	)
+    SELECT unique_activities.uid
+    FROM unique_activities WHERE unique_activities.short_description = activity_type.short_description
+);
+
+DELETE FROM activity_type
+WHERE NOT activity_type = 'Miscellaneous' AND NOT activity_type = 'Miscellaneous (screen)' AND
+(
+    SELECT COUNT(*)
+    FROM activity
+    WHERE activity.activity_type = activity_type.activity_type_id
+) = 0;
+
