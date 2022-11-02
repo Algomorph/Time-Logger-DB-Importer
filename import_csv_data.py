@@ -62,6 +62,10 @@ def main() -> int:
             "private_password": Parameters.private_password.value
         }
     )
+    if request.status_code != 200:
+        print(f"Server responded with status code {request.status_code}:")
+        print(request.text)
+        return 1
     activity_types = request.json()
     activity_map = {}
     for activity_type in activity_types:
@@ -88,7 +92,8 @@ def main() -> int:
             activity_type_id = 0
             skip = False
             if short_description not in activity_map:
-                skip = not query_yes_no(f"Activity type with short description \"{short_description}\" is not in the database. Add? (Will skip otherwise) ")
+                skip = not query_yes_no(f"Activity type with short description \"{short_description}\" is not in the "
+                                        f"database. Add? (Will skip entry insertion otherwise) ")
                 if not skip:
                     data = {
                         "short_description": short_description,
@@ -114,8 +119,11 @@ def main() -> int:
                     "end": row[3],
                     "comment": row[4]
                 }
-                requests.post(insert_script_url, data)
-            print(f"processed: {row}")
+                request = requests.post(insert_script_url, data)
+                if request.status_code != 200:
+                    print(f"Server responded with status code {request.status_code} and message {request.text}.")
+
+            print(f"processed: {row}. Server response: {request.text}")
             i_row += 1
 
     return PROGRAM_EXIT_SUCCESS
