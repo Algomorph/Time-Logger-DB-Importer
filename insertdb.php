@@ -199,7 +199,7 @@ EOD;
     if (isset($_POST['start']) && isset($_POST['end'])) {
         $start = $_POST['start'];
         $end = $_POST['end'];
-        $time_range_clause = "AND activity.start >= $start AND activity.end <= $end";
+        $time_range_clause = "AND activity.start >= '$start' AND activity.end <= '$end'";
     } else {
         $time_range_clause = "AND activity.start >= SUBDATE(NOW(), INTERVAL 1 YEAR)";
     }

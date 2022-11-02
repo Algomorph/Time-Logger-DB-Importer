@@ -158,7 +158,7 @@
                 chart.hideSeries(node.original.text);
             }
         } else {
-            for(const node_name of node.children){
+            for (const node_name of node.children) {
                 handleTreeNode(show, tree.get_node(node_name), tree, chart);
             }
         }
@@ -182,7 +182,25 @@
         } else {
             echo "const query_activities = null;\n";
             echo "const limit_activities = false;\n";
-        } ?>
+        }
+        if (isset($_GET['start'])) {
+            echo "const limit_time_range = true;\n";
+            echo "const start = '" . $_GET['start'] . "';\n";
+            if (isset($_GET['end'])) {
+                echo "const end = '" . $_GET['end'] . "';\n";
+            } else {
+                echo "const end = '" . date_create('now')->format('Y-m-d H:i:s') . "';\n";
+            }
+        } else {
+            echo "const limit_time_range = false;";
+            echo "const start = null;";
+            echo "const end = null;";
+        }
+        ?>
+        let entryRetrievalQueryParams = new URLSearchParams()
+        if (limit_time_range) {
+            entryRetrievalQueryParams = new URLSearchParams({'start': start, 'end': end})
+        }
         // prefetch the data types
         fetch(dataUrl, {
                 method: 'POST',
@@ -210,7 +228,14 @@
                     colorCollection.push("#" + type.color);
                     seriesMap.set(activityName, activitySeries);
                 }
-                fetch(dataUrl).then(response => response.json()).then(
+                fetch(dataUrl,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: entryRetrievalQueryParams
+                    }).then(response => response.json()).then(
                     data => {
                         let minDate = Date.now()
                         let maxDate = Date.parse('01 Jan 1970 00:00:00 GMT')
@@ -252,10 +277,10 @@
                         const chart = generateChart(seriesCollection, colorCollection);
                         generateTree(seriesNames, chart);
                         $("#tree").on('changed.jstree', function (e, data) {
-                           const tree = $.jstree.reference('#tree');
-                           if(data.node !== undefined){
-                               handleTreeNode(tree.is_checked(data.node), data.node, tree, chart);
-                           }
+                            const tree = $.jstree.reference('#tree');
+                            if (data.node !== undefined) {
+                                handleTreeNode(tree.is_checked(data.node), data.node, tree, chart);
+                            }
                         });
                     }
                 );
